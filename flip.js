@@ -1,14 +1,8 @@
 import { Pane } from 'https://cdn.skypack.dev/tweakpane@4.0.4'
 import gsap from 'https://cdn.skypack.dev/gsap@3.12.0'
-//import { bindAudioUnlock, playFlipBurst } from './flip_sound.js'
 import { bindAudioUnlock, playFlipBurst, testFlipSound } from './flip_sound.js'
 
 bindAudioUnlock()
-
-
-window.addEventListener('click', () => {
-  console.log('click heard')
-}, { once: true })
 
 gsap.defaults({
   duration: 1,
@@ -22,6 +16,7 @@ const config = {
   perspective: 1,
   length: 10,
   characters: 'abcdefghijklmnopqrstuvwxyz',
+  sound: true,
 }
 
 const ctrl = new Pane({
@@ -31,19 +26,17 @@ const ctrl = new Pane({
 
 const update = () => {
   document.documentElement.dataset.theme = config.theme
-  document.documentElement.dataset.explode = config.explode
-  document.documentElement.style.setProperty(
-    '--perspective',
-    config.perspective
-  )
+  document.documentElement.style.setProperty('--perspective', config.perspective)
 }
 
 const sync = (event) => {
   if (
     !document.startViewTransition ||
     event.target.controller.view.labelElement.innerText !== 'Theme'
-  )
+  ) {
     return update()
+  }
+
   document.startViewTransition(() => update())
 }
 
@@ -76,10 +69,15 @@ ctrl.addBinding(config, 'theme', {
   },
 })
 
+ctrl.addBinding(config, 'sound', {
+  label: 'sound',
+})
+
 ctrl.on('change', sync)
 update()
 
 const DEFAULT_CHARACTERS = 'abcdefghijklmnopqrstuvwxyz'
+
 class FlipSlot {
   constructor(options = {}) {
     const {
@@ -87,6 +85,7 @@ class FlipSlot {
       color = 'canvasText',
       pad = 0,
     } = options
+
     this.characters = Array.from(` ${characters} `)
     this.colorSet = color
     this.pad = pad
@@ -104,59 +103,51 @@ class FlipSlot {
   }
 
   create() {
-    const element = Object.assign(document.createElement('div'), {
+    return Object.assign(document.createElement('div'), {
       className: 'flip',
       style: `--color: ${this.colorSet}`,
       innerHTML: `
-        <!-- fold top -->
         <div></div>
-        <!-- fold bottom -->
         <div></div>
-        <!-- unfold top -->
         <div></div>
-        <!-- unfold bottom -->
         <div></div>
       `,
     })
-    return element
   }
 
   flip(character, delay = 0) {
-    // const chars = Array.from(` ${config.characters} `)
-    // const desired = config.character
     const { characters: chars, pad, timeline, scrubber } = this
-    const currentIndex = chars.indexOf(chars[timeline.totalTime()])
-    const desiredIndex =
-      chars.indexOf(character) !== -1 ? chars.indexOf(character) : 0
-    // if the current index is greater, loop around
-    // we seem to have to add an extra 0.5 to make up for gaps
+
+    const currentIndex = chars.indexOf(chars[Math.floor(timeline.totalTime())]) || 0
+    const desiredIndex = chars.indexOf(character) !== -1 ? chars.indexOf(character) : 0
+
     const shift =
       currentIndex > desiredIndex
         ? chars.length - 1 - currentIndex + desiredIndex
         : desiredIndex - currentIndex
-    // this is how you throw an extra loop in for the stagger
-    const padding = currentIndex === desiredIndex ? 0 : pad * (chars.length - 1)
 
+    const padding = currentIndex === desiredIndex ? 0 : pad * (chars.length - 1)
     const totalSteps = shift + padding
-    if (totalSteps > 0) {
+
+    if (config.sound && totalSteps > 0) {
       playFlipBurst(Math.min(totalSteps, 12), delay)
     }
 
     gsap.to(scrubber, {
       delay,
-      totalTime: `+=${shift + padding}`,
+      totalTime: `+=${totalSteps}`,
       ease: 'power1.out',
-      duration: (shift + padding) * gsap.utils.random(0.02, 0.06),
+      duration: totalSteps * gsap.utils.random(0.02, 0.06),
     })
   }
 
   generateTimeline() {
-    const { timeline: currentTimeline, scrubber, element } = this
+    const { timeline: currentTimeline, scrubber } = this
     if (currentTimeline) currentTimeline.kill()
-    if (scrubber) this.scrubber.kill()
+    if (scrubber) scrubber.kill()
 
     const [unfoldTop, unfoldBottom, foldTop, foldBottom] = Array.from(
-      element.querySelectorAll('& > div')
+      this.element.querySelectorAll(':scope > div')
     )
 
     const chars = this.characters
@@ -169,7 +160,6 @@ class FlipSlot {
     const timeline = gsap
       .timeline({
         paused: true,
-        // account for the extra space
         repeat: chars.length - 2,
         onRepeat: () => {
           const index = Math.floor(timeline.totalTime() / timeline.duration())
@@ -179,51 +169,21 @@ class FlipSlot {
           foldTop.innerText = foldBottom.innerText = next
         },
       })
-      .fromTo(
-        unfoldBottom,
-        { rotateX: 180 },
-        {
-          rotateX: 0,
-          duration: 1,
-        },
-        0
-      )
-      .fromTo(
-        unfoldTop,
-        { filter: 'brightness(0)' },
-        {
-          filter: 'brightness(1)',
-          duration: 1,
-        },
-        0
-      )
-      .fromTo(
-        foldTop,
-        { rotateX: 0 },
-        {
-          duration: 1,
-          rotateX: -180,
-        },
-        0
-      )
-      .fromTo(
-        foldBottom,
-        { filter: 'brightness(1)' },
-        {
-          duration: 1,
-          filter: 'brightness(0)',
-        },
-        0
-      )
+      .fromTo(unfoldBottom, { rotateX: 180 }, { rotateX: 0, duration: 1 }, 0)
+      .fromTo(unfoldTop, { filter: 'brightness(0)' }, { filter: 'brightness(1)', duration: 1 }, 0)
+      .fromTo(foldTop, { rotateX: 0 }, { rotateX: -180, duration: 1 }, 0)
+      .fromTo(foldBottom, { filter: 'brightness(1)' }, { filter: 'brightness(0)', duration: 1 }, 0)
 
     const duration = timeline.totalDuration()
+
     this.scrubber = gsap.to(timeline, {
       totalTime: duration,
       repeat: -1,
       paused: true,
-      duration: duration,
+      duration,
       ease: 'none',
     })
+
     this.scrubber.time(timeline.totalDuration())
     this.timeline = timeline
   }
@@ -235,13 +195,12 @@ class FlipLine {
     this.colorSet = color
     this.length = length
     this.padding = pad
-    this.options = options
-
     this.setup()
   }
 
   setup() {
     const { colorSet, length, padding } = this
+
     if (this.element) {
       this.element.innerHTML = ''
     } else {
@@ -249,7 +208,9 @@ class FlipLine {
         className: 'flip-line',
       })
     }
+
     this.flips = []
+
     for (let i = 0; i < length; i++) {
       const newSlot = new FlipSlot({
         pad: padding,
@@ -267,22 +228,20 @@ class FlipLine {
   }
 
   set pad(value) {
-    const { flips } = this
-    if (flips) {
-      for (let i = 0; i < flips.length; i++) flips[i].pad = value
+    if (this.flips) {
+      for (const flip of this.flips) flip.pad = value
     }
   }
 
   set color(value) {
-    const { flips } = this
     this.colorSet = value
-    if (flips) {
-      for (let i = 0; i < flips.length; i++) flips[i].color = value
+    if (this.flips) {
+      for (const flip of this.flips) flip.color = value
     }
   }
 
   run(update) {
-    const letters = Array.from(update.padEnd(10, ' '))
+    const letters = Array.from(update.padEnd(this.length, ' '))
     for (let i = 0; i < Math.min(letters.length, this.length); i++) {
       this.flips[i]?.flip(letters[i], i / 10)
     }
@@ -301,7 +260,6 @@ testButton.style.padding = '0.5rem 0.75rem'
 testButton.style.fontSize = '14px'
 
 testButton.addEventListener('click', () => {
-  console.log('[audio test] button clicked')
   testFlipSound()
 })
 
@@ -315,24 +273,25 @@ const addLine = ({
 }) => {
   const lineConfig = {
     text,
-    length: 10,
+    length: config.length,
     pad,
-    color: color,
+    color,
     characters: DEFAULT_CHARACTERS,
     alignment,
     id: crypto.randomUUID(),
   }
 
   const newLine = new FlipLine({
-    length: lineConfig.line,
-    color: color,
+    length: lineConfig.length,
+    color,
     pad,
   })
+
   board.appendChild(newLine.element)
 
   newLine.run(
     lineConfig.alignment === 'right'
-      ? lineConfig.text.toLowerCase().padStart(10, ' ')
+      ? lineConfig.text.toLowerCase().padStart(lineConfig.length, ' ')
       : lineConfig.text.toLowerCase()
   )
 
@@ -340,127 +299,45 @@ const addLine = ({
     config: lineConfig,
     flipper: newLine,
   }
-
-  const lineFolder = ctrl.addFolder({
-    title: 'Line',
-    expanded: false,
-  })
-
-  lineFolder.addBinding(lineConfig, 'text', {
-    label: 'text',
-  })
-
-  lineFolder
-    .addBinding(lineConfig, 'characters', {
-      label: 'characters',
-    })
-    .on('change', () => {
-      for (const flip of newLine.flips) {
-        flip.chars = lineConfig.characters
-      }
-    })
-
-  lineFolder
-    .addBinding(lineConfig, 'pad', {
-      label: 'pad',
-      min: 0,
-      max: 4,
-      step: 1,
-    })
-    .on('change', () => {
-      newLine.pad = lineConfig.pad
-    })
-
-  lineFolder.addBinding(lineConfig, 'alignment', {
-    options: {
-      left: 'left',
-      right: 'right',
-    },
-  })
-
-  lineFolder
-    .addBinding(lineConfig, 'color', {
-      view: 'color',
-      color: { alpha: true },
-    })
-    .on('change', () => {
-      newLine.color = lineConfig.color
-    })
-
-  // create a flipper
-  lineFolder.addButton({ title: 'Run' }).on('click', () => {
-    newLine.run(
-      lineConfig.alignment === 'right'
-        ? lineConfig.text.toLowerCase().padStart(10, ' ')
-        : lineConfig.text.toLowerCase()
-    )
-  })
-
-  lineFolder.addButton({ title: 'Remove' }).on('click', () => {
-    // must delete the item from flippers
-    delete flips[lineConfig.id]
-    ctrl.remove(lineFolder)
-    newLine.element.remove()
-  })
 }
 
-ctrl.addButton({ title: 'Play' }).on('click', () => {
-  for (const line of Object.values(flips)) {
-    line.flipper.run(
-      line.config.alignment === 'right'
-        ? line.config.text.toLowerCase().padStart(10, ' ')
-        : line.config.text.toLowerCase()
+function getColorForDays(days) {
+  if (days < 10) return 'hsl(0, 100%, 50%)'
+  if (days < 30) return 'hsl(44, 100%, 50%)'
+  return 'hsl(120, 60%, 40%)'
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const response = await fetch('./incident.json')
+    const data = await response.json()
+
+    const dateValues = Object.entries(data)
+      .filter(([key]) => key.startsWith('incident.') && key.endsWith('.date'))
+      .map(([, value]) => new Date(value))
+      .filter((d) => !Number.isNaN(d.getTime()))
+
+    if (!dateValues.length) {
+      throw new Error('No valid incident dates found')
+    }
+
+    const lastIncidentDate = new Date(
+      Math.max(...dateValues.map((d) => d.getTime()))
     )
+
+    const now = new Date()
+    const diffDays = Math.floor((now - lastIncidentDate) / (1000 * 60 * 60 * 24))
+
+    addLine({ text: 'Days Since', pad: 0 })
+    addLine({ text: 'Last Major', pad: 0 })
+    addLine({ text: 'Incident', pad: 0 })
+    addLine({ text: 'Caused by IAM:', pad: 0 })
+    addLine({
+      text: diffDays.toString(),
+      pad: 1,
+      color: getColorForDays(diffDays),
+    })
+  } catch (error) {
+    console.error('Error loading incident data:', error)
   }
-})
-
-ctrl.addButton({ title: 'Blank' }).on('click', () => {
-  for (const line of Object.values(flips)) {
-    line.flipper.run('')
-  }
-})
-
-ctrl.addButton({ title: 'Add Line' }).on('click', addLine)
-// addLine({
-//   text: 'You can',
-//   pad: 1,
-//   alignment: 'right',
-// })
-// addLine({
-//   text: 'just ship',
-//   pad: 2,
-//   alignment: 'right',
-// })
-// addLine({
-//   text: 'things',
-//   pad: 3,
-//   alignment: 'right',
-// })
-// addLine({
-//   text: 'on time',
-//   pad: 4,
-//   alignment: 'right',
-//   color: 'hsl(44,82%,49%)',
-// })
-
-addLine({
-  text: 'Babe!',
-  pad: 1,
-  alignment: 'left',
-})
-addLine({
-  text: 'new craft',
-  pad: 2,
-  alignment: 'right',
-})
-addLine({
-  text: 'of u1',
-  pad: 3,
-  alignment: 'right',
-})
-addLine({
-  text: 'dropped',
-  pad: 4,
-  alignment: 'right',
-  color: 'hsl(44,82%,49%)',
 })
