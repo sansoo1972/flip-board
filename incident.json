@@ -1,0 +1,10 @@
+{
+    "incident.5.date": "2025-12-10",
+    "_comment_incident_2025-12-10": "Incorrect aggregation and refresh logic during LCM migration from SailPoint IIQ to ISC caused ~300 user email addresses to be recreated and break. RCA is TBD; initial evidence points to insufficient lower-environment testing as production and test environments (ISC and AD) were not aligned. Incident INC0953074 opened for tracking.",
+    "incident.4.date": "2025-10-23",
+    "_comment_incident_2025-10-23": "The FastPass Policy for Okta was not compatible with Snowflake ODBC drivers and they were unable to authenticate to run business jobs. Failure was on the ODBC drivers, but ownership is IAM for not ensuring full tests by the app snowflake teams. remediation should be to ensure a full regression test automation for future policy changes, and ensuring modern authentication for all applications. with Risk exceptions for any app that requires a one off policy.",
+    "incident.3.date": "2025-08-18",
+    "_comment_incident_2025_08_18": "LAN ID was mistakenly linked to ADM domain instead of toyota.com, causing access issues. Login name was updated to match email; validation is in progress. ~226 accounts affected. https://toyotafinancial.atlassian.net/wiki/x/dwEzdQ",
+    "incident.2.date": "2025-06-03",
+    "incident.1.date": "2025-05-15"
+}
