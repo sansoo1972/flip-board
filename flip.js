@@ -1,5 +1,14 @@
 import { Pane } from 'https://cdn.skypack.dev/tweakpane@4.0.4'
 import gsap from 'https://cdn.skypack.dev/gsap@3.12.0'
+//import { bindAudioUnlock, playFlipBurst } from './flip_sound.js'
+import { bindAudioUnlock, playFlipBurst, testFlipSound } from './flip_sound.js'
+
+bindAudioUnlock()
+
+
+window.addEventListener('click', () => {
+  console.log('click heard')
+}, { once: true })
 
 gsap.defaults({
   duration: 1,
@@ -127,6 +136,12 @@ class FlipSlot {
         : desiredIndex - currentIndex
     // this is how you throw an extra loop in for the stagger
     const padding = currentIndex === desiredIndex ? 0 : pad * (chars.length - 1)
+
+    const totalSteps = shift + padding
+    if (totalSteps > 0) {
+      playFlipBurst(Math.min(totalSteps, 12), delay)
+    }
+
     gsap.to(scrubber, {
       delay,
       totalTime: `+=${shift + padding}`,
@@ -275,6 +290,23 @@ class FlipLine {
 }
 
 const board = document.querySelector('.board')
+
+const testButton = document.createElement('button')
+testButton.textContent = 'Test Sound'
+testButton.style.position = 'fixed'
+testButton.style.top = '1rem'
+testButton.style.right = '1rem'
+testButton.style.zIndex = '9999'
+testButton.style.padding = '0.5rem 0.75rem'
+testButton.style.fontSize = '14px'
+
+testButton.addEventListener('click', () => {
+  console.log('[audio test] button clicked')
+  testFlipSound()
+})
+
+document.body.appendChild(testButton)
+
 const addLine = ({
   text = '',
   pad = 1,
