@@ -1,6 +1,4 @@
-from pathlib import Path
-
-content = """# flip-board
+# flip-board
 
 A browser-based split-flap / Vestaboard-style board built with HTML, CSS, and JavaScript.
 
@@ -269,8 +267,3 @@ Likely future improvements:
 - Keep page-specific logic in the HTML page or a page-specific module
 - Keep board rendering logic in `flip.js`
 - Keep audio logic in `flip_sound.js`
-"""
-
-path = Path("/mnt/data/README.md")
-path.write_text(content, encoding="utf-8")
-print(f"Saved to {path}")
