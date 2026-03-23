@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Status Board</title>
+  <link rel="stylesheet" href="./flip.css" />
+</head>
+<body>
+  <div class="board"></div>
+
+  <script type="module">
+    import { createFlipBoard } from './flip.js'
+
+    const board = createFlipBoard({
+      boardSelector: '.board',
+      columns: 20,
+      theme: 'dark',
+      perspective: 1.2,
+      sound: false,
+    })
+
+    board.renderLines([
+      { text: 'Build Status' },
+      { text: 'Pipeline Green', color: 'hsl(120, 60%, 40%)' },
+      { text: 'Deploy 7:30 PM', alignment: 'right' },
+    ])
+  </script>
+</body>
+</html>

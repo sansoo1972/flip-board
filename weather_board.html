@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Weather Board</title>
+  <link rel="stylesheet" href="./flip.css" />
+</head>
+<body>
+  <div class="board"></div>
+
+  <script type="module">
+    import { createFlipBoard } from './flip.js'
+
+    const board = createFlipBoard({
+      boardSelector: '.board',
+      columns: 20,
+      theme: 'dark',
+      perspective: 1,
+      sound: true,
+    })
+
+    function toTitleCase(value = '') {
+      return value
+        .toLowerCase()
+        .split(' ')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ')
+    }
+
+    function getWeatherCodeLabel(code) {
+      const map = {
+        0: 'Clear Sky',
+        1: 'Mostly Clear',
+        2: 'Partly Cloudy',
+        3: 'Overcast',
+        45: 'Fog',
+        48: 'Rime Fog',
+        51: 'Light Drizzle',
+        53: 'Drizzle',
+        55: 'Heavy Drizzle',
+        56: 'Freezing Drizzle',
+        57: 'Heavy Frz Drizzle',
+        61: 'Light Rain',
+        63: 'Rain',
+        65: 'Heavy Rain',
+        66: 'Freezing Rain',
+        67: 'Heavy Frz Rain',
+        71: 'Light Snow',
+        73: 'Snow',
+        75: 'Heavy Snow',
+        77: 'Snow Grains',
+        80: 'Rain Showers',
+        81: 'Heavy Showers',
+        82: 'Violent Showers',
+        85: 'Snow Showers',
+        86: 'Heavy Snow Showers',
+        95: 'Thunderstorm',
+        96: 'Tstorm/Hail',
+        99: 'Severe Tstorm/Hail',
+      }
+      return map[code] ?? 'Unknown'
+    }
+
+    function weatherColor(code, highTempF) {
+      if ([95, 96, 99].includes(code)) return 'hsl(0, 100%, 50%)'
+      if ([61, 63, 65, 80, 81, 82].includes(code)) return 'hsl(210, 100%, 65%)'
+      if (highTempF >= 95) return 'hsl(20, 100%, 50%)'
+      if (highTempF <= 40) return 'hsl(200, 100%, 75%)'
+      return 'hsl(120, 60%, 40%)'
+    }
+
+    async function geocodePlace(place) {
+      const url = new URL('https://geocoding-api.open-meteo.com/v1/search')
+      url.searchParams.set('name', place)
+      url.searchParams.set('count', '1')
+      url.searchParams.set('language', 'en')
+      url.searchParams.set('format', 'json')
+
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Geocoding failed: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (!data.results || !data.results.length) {
+        throw new Error(`No location found for "${place}"`)
+      }
+
+      return data.results[0]
+    }
+
+    async function fetchWeather(latitude, longitude) {
+      const url = new URL('https://api.open-meteo.com/v1/forecast')
+      url.searchParams.set('latitude', latitude)
+      url.searchParams.set('longitude', longitude)
+      url.searchParams.set(
+        'current',
+        'temperature_2m,apparent_temperature,weather_code,wind_speed_10m'
+      )
+      url.searchParams.set(
+        'daily',
+        'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max'
+      )
+      url.searchParams.set('temperature_unit', 'fahrenheit')
+      url.searchParams.set('wind_speed_unit', 'mph')
+      url.searchParams.set('precipitation_unit', 'inch')
+      url.searchParams.set('timezone', 'auto')
+      url.searchParams.set('forecast_days', '1')
+
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Weather fetch failed: HTTP ${response.status}`)
+      }
+
+      return response.json()
+    }
+
+    async function renderWeatherBoard(place = 'Allen, TX') {
+      const location = await geocodePlace(place)
+      const weather = await fetchWeather(location.latitude, location.longitude)
+
+      const current = weather.current
+      const daily = weather.daily
+
+      const cityLabel = `${location.name}, ${location.admin1 ?? location.country_code ?? ''}`
+      const currentTemp = Math.round(current.temperature_2m)
+      const feelsLike = Math.round(current.apparent_temperature)
+      const wind = Math.round(current.wind_speed_10m)
+      const high = Math.round(daily.temperature_2m_max[0])
+      const low = Math.round(daily.temperature_2m_min[0])
+      const rainChance = daily.precipitation_probability_max?.[0] ?? 0
+      const code = current.weather_code
+      const condition = getWeatherCodeLabel(code)
+
+      board.renderLines([
+        { text: toTitleCase(cityLabel).slice(0, 20), color: 'hsl(0,0%,90%)' },
+        { text: `${currentTemp}f now`, color: weatherColor(code, high) },
+        { text: `feels ${feelsLike}f`, alignment: 'right' },
+        { text: `hi ${high} low ${low}` },
+        { text: `${condition}`.slice(0, 20), color: 'hsl(44, 100%, 50%)' },
+        { text: `rain ${rainChance}% wind ${wind}`, alignment: 'right' },
+      ])
+    }
+
+    renderWeatherBoard('Allen, TX').catch((error) => {
+      console.error('Error rendering weather board:', error)
+      board.renderLines([
+        { text: 'Weather Error', color: 'hsl(0, 100%, 50%)' },
+        { text: 'See Console' },
+      ])
+    })
+  </script>
+</body>
+</html>
