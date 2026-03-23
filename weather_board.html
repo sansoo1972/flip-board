@@ -2,6 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Weather Board</title>
   <link rel="stylesheet" href="./flip.css" />
 </head>
@@ -18,14 +19,6 @@
       perspective: 1,
       sound: true,
     })
-
-    function toTitleCase(value = '') {
-      return value
-        .toLowerCase()
-        .split(' ')
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(' ')
-    }
 
     function getWeatherCodeLabel(code) {
       const map = {
@@ -61,7 +54,7 @@
       return map[code] ?? 'Unknown'
     }
 
-    function weatherColor(code, highTempF) {
+    function getWeatherColor(code, highTempF) {
       if ([95, 96, 99].includes(code)) return 'hsl(0, 100%, 50%)'
       if ([61, 63, 65, 80, 81, 82].includes(code)) return 'hsl(210, 100%, 65%)'
       if (highTempF >= 95) return 'hsl(20, 100%, 50%)'
@@ -69,12 +62,17 @@
       return 'hsl(120, 60%, 40%)'
     }
 
-    async function geocodePlace(place) {
+    function fit(text, length = 20) {
+      return String(text).slice(0, length)
+    }
+
+    async function geocodePlace(place, countryCode = 'US') {
       const url = new URL('https://geocoding-api.open-meteo.com/v1/search')
       url.searchParams.set('name', place)
       url.searchParams.set('count', '1')
       url.searchParams.set('language', 'en')
       url.searchParams.set('format', 'json')
+      url.searchParams.set('countryCode', countryCode)
 
       const response = await fetch(url)
       if (!response.ok) {
@@ -82,6 +80,7 @@
       }
 
       const data = await response.json()
+
       if (!data.results || !data.results.length) {
         throw new Error(`No location found for "${place}"`)
       }
@@ -103,7 +102,6 @@
       )
       url.searchParams.set('temperature_unit', 'fahrenheit')
       url.searchParams.set('wind_speed_unit', 'mph')
-      url.searchParams.set('precipitation_unit', 'inch')
       url.searchParams.set('timezone', 'auto')
       url.searchParams.set('forecast_days', '1')
 
@@ -115,14 +113,14 @@
       return response.json()
     }
 
-    async function renderWeatherBoard(place = 'Allen, TX') {
-      const location = await geocodePlace(place)
+    async function renderWeatherBoard(place = 'Allen', countryCode = 'US') {
+      const location = await geocodePlace(place, countryCode)
       const weather = await fetchWeather(location.latitude, location.longitude)
 
       const current = weather.current
       const daily = weather.daily
 
-      const cityLabel = `${location.name}, ${location.admin1 ?? location.country_code ?? ''}`
+      const cityLabel = fit(`${location.name}, ${location.admin1 ?? ''}`, 20)
       const currentTemp = Math.round(current.temperature_2m)
       const feelsLike = Math.round(current.apparent_temperature)
       const wind = Math.round(current.wind_speed_10m)
@@ -130,19 +128,19 @@
       const low = Math.round(daily.temperature_2m_min[0])
       const rainChance = daily.precipitation_probability_max?.[0] ?? 0
       const code = current.weather_code
-      const condition = getWeatherCodeLabel(code)
+      const condition = fit(getWeatherCodeLabel(code), 20)
 
       board.renderLines([
-        { text: toTitleCase(cityLabel).slice(0, 20), color: 'hsl(0,0%,90%)' },
-        { text: `${currentTemp}f now`, color: weatherColor(code, high) },
+        { text: cityLabel, color: 'hsl(0,0%,90%)' },
+        { text: `${currentTemp}f now`, color: getWeatherColor(code, high) },
         { text: `feels ${feelsLike}f`, alignment: 'right' },
         { text: `hi ${high} low ${low}` },
-        { text: `${condition}`.slice(0, 20), color: 'hsl(44, 100%, 50%)' },
-        { text: `rain ${rainChance}% wind ${wind}`, alignment: 'right' },
+        { text: condition, color: 'hsl(44, 100%, 50%)' },
+        { text: fit(`rain ${rainChance}% wind ${wind}`, 20), alignment: 'right' },
       ])
     }
 
-    renderWeatherBoard('Allen, TX').catch((error) => {
+    renderWeatherBoard('Allen', 'US').catch((error) => {
       console.error('Error rendering weather board:', error)
       board.renderLines([
         { text: 'Weather Error', color: 'hsl(0, 100%, 50%)' },
